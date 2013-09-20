@@ -36,7 +36,7 @@ function safe_umount(){
   set +e
   while true; do
     sync
-    umount $umount_target
+    sudo umount -f $umount_target
 
     if [ $? -ne 0 ]; then
       sleep $TIME_TO_SLEEP

@@ -13,6 +13,45 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+# SCRIPTNAME=$(basename $0)
+# SCRIPT_HOME=$(dirname $0)
+# if [ -d $SCRIPT_HOME/../share/diskimage-builder ]
+# then
+#     export _PREFIX=$SCRIPT_HOME/../share/diskimage-builder
+# else
+#     export _PREFIX=$SCRIPT_HOME/..
+# fi
+# export _LIB=$_PREFIX/lib
+# source $_LIB/common-functions
+
+function safe_umount(){
+  MAX_RETRIES=4
+  TIME_TO_SLEEP=10
+
+  umount_target=$1
+  counter=1
+  set +e
+  while true; do
+    sync
+    umount $umount_target
+
+    if [ $? -ne 0 ]; then
+      sleep $TIME_TO_SLEEP
+      counter=$[$counter +1]
+    else
+      break
+    fi
+
+    if [ "$counter" -gt "$MAX_RETRIES" ]; then
+      echo "failed to umount ${umount_target}"
+      exit 1
+    fi
+
+  done
+
+  set -e
+}
+
 function unmount_image () {
     # Calling sync before helps ensure the mount isn't busy when you unmount it.
     # Previously observing having disk corruption issues; one possibility is
@@ -25,7 +64,7 @@ function unmount_image () {
     local MOUNTS
     MOUNTS=$(grep < /proc/mounts " $TMP_BUILD_DIR/mnt" | awk '{ print $2 }' | sort -r)
     for M in $MOUNTS; do
-        sudo umount -f $M || true
+        safe_umount $M
     done
     if [ -n "$EXTRA_UNMOUNT" ]; then
         $EXTRA_UNMOUNT
@@ -83,7 +122,7 @@ function run_d_in_target () {
       run_in_target dib-run-parts /tmp/in_target.d/$1.d
       trap - ERR
       check_break after-$1 run_in_target bash
-      sudo umount -f $TMP_MOUNT_PATH/tmp/in_target.d
+      safe_umount $TMP_MOUNT_PATH/tmp/in_target.d
       sudo rmdir $TMP_MOUNT_PATH/tmp/in_target.d
     fi
 }

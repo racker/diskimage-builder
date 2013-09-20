@@ -14,6 +14,34 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+function safe_umount(){
+  MAX_RETRIES=4
+  TIME_TO_SLEEP=10
+
+  umount_target=$1
+  counter=1
+  set +e
+  while true; do
+    sync
+    umount $umount_target
+
+    if [ $? -ne 0 ]; then
+      sleep $TIME_TO_SLEEP
+      counter=$[$counter +1]
+    else
+      break
+    fi
+
+    if [ "$counter" -gt "$MAX_RETRIES" ]; then
+      echo "failed to umount ${umount_target}"
+      exit 1
+    fi
+
+  done
+
+  set -e
+}
+
 function tmpfs_check() {
   [ "$DIB_NO_TMPFS" == "0" ] || return 1
   [ -r /proc/meminfo ] || return 1
@@ -128,7 +156,7 @@ function map_nbd {
 
 # Delete and unmount the working dir used in extracting kernel/initrd
 function unmount_qcow_image () {
-    sudo umount $WORK_DIR || true
+    safe_umount $WORK_DIR
     sudo qemu-nbd -d $NBD_DEV || true
     sudo rm -rf $WORK_DIR
 
@@ -150,7 +178,7 @@ function mount_qcow_image() {
 function cleanup_dirs () {
     sudo rm -rf $TMP_BUILD_DIR/built
     sudo rm -rf $TMP_BUILD_DIR/mnt
-    sudo umount -f  $TMP_BUILD_DIR || true
+    safe_umount $TMP_BUILD_DIR
     rm -rf $TMP_BUILD_DIR
 }
 
